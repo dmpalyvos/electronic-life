@@ -25,13 +25,14 @@ var plan = ['##############################',
             '#        #               ##  #',
             '#     o #         #          #',
             '#      #          #          #',
-            '#       ###                  #',
+            '# ~     ###                  #',
             '#                 o          #',
             '#                            #',
             '#    o ##          ###       #',
             '#        ##        #   o     #',
             '#      ##          #         #',
             '##############################'];
+
 
 // Available moves
 // Clockwise order (45 degree intervals)
@@ -49,14 +50,14 @@ var directions = {
 };
 
 
-//
-// Helper Functions
-//
-
 // Manually setting instead of using Object.keys() to make sure 
 // that we get the correct order
 var directionNames = 'n,ne,e,se,s,sw,w,nw'.split(',');
 
+
+//
+// Helper Functions
+//
 
 // Get a random element from the provided array
 function randomElement(array) {
@@ -83,6 +84,18 @@ function charFromElement(element) {
     else {
         return element.originChar;
     }
+}
+
+// Shift the direction by the given amount of degrees
+// WARNING: Only multiples of 45 degrees are allowed
+function turnDirection(direction, degrees) {
+    if (degrees % 45 !== 0) {
+        throw new Error('Only multiples of 45 degrees are allowed');
+    }
+    directionIdx = directionNames.indexOf(direction);
+    steps = (360 + degrees) % 360;
+    steps = steps / 45;
+    return directionNames[(directionIdx + steps) % directionNames.length];
 }
 
 
@@ -174,8 +187,28 @@ function BouncingCritter() {
     this.direction = randomElement(directionNames);
 }
 BouncingCritter.prototype.act = function(view) {
-    if (view.look(this.direction) != ' ') {
+    if (view.look(this.direction) !== ' ') {
         this.direction = view.find(' ') || 's';
+    }
+    return { type: 'move',
+             direction: this.direction };
+};
+
+
+function Snake() {
+    //Default behaviour: drop until you find a wall
+    this.direction = 's';
+}
+Snake.prototype.act = function(view) {
+    var start = this.direction;
+    if (view.look(turnDirection(this.direction, -135)) !== ' ') {
+        start = this.direction = turnDirection(this.direction, -90);
+    }
+    while (view.look(this.direction) !== ' ') {
+        this.direction = turnDirection(this.direction, 45);
+        if (this.direction === start) {
+            break;
+        }
     }
     return { type: 'move',
              direction: this.direction };
@@ -199,7 +232,7 @@ function World(map, legend) {
 World.prototype.turn = function() {
     var acted = [];
     this.grid.forEach(function(critter, vector) {
-        if (critter.act && acted.indexOf(critter) == -1) {
+        if (critter.act && acted.indexOf(critter) === -1) {
             acted.push(critter);
             this.letAct(critter, vector);
         }
@@ -208,6 +241,7 @@ World.prototype.turn = function() {
 World.prototype.letAct = function(critter, vector) {
     var action = critter.act(new View(this, vector));
     if (action && action.type == 'move') {
+        // If the destination is valid and unoccupied
         var dest = this.checkDestination(action, vector);
         if (dest && this.grid.get(dest) === null) {
             this.grid.set(vector, null);
@@ -216,6 +250,7 @@ World.prototype.letAct = function(critter, vector) {
     }
 };
 World.prototype.checkDestination = function(action, vector) {
+    // Validate that the critter chose an existing direction
     if (directions.hasOwnProperty(action.direction)) {
         var dest = vector.plus(directions[action.direction]);
         if (this.grid.isInside(dest)) {
@@ -244,7 +279,7 @@ function draw(str) {
 }
 
 
-var world = new World(plan, { '#': Wall, 'o': BouncingCritter } );
+var world = new World(plan, { '#': Wall, 'o': BouncingCritter, '~': Snake } );
 
 
 function animateWorld() {
