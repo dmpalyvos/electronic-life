@@ -1,5 +1,6 @@
 // life.js - Electronic Life Simulation
 // Inspired by one of the projects in the book "Eloquent Javascript"
+// http://eloquentjavascript.net/07_elife.html
 //
 // Class Descriptions:
 //      - Vector: A simple 2D Vector Class with the addition operation
@@ -22,15 +23,15 @@
 // The '#' character represents a wall block and
 // the 'o' character represents a critter
 var plan = ['##############################',
-            '#        #               ##  #',
-            '#     o #         #          #',
-            '#      #          #          #',
-            '# ~     ###                  #',
-            '#                 o          #',
+            '#       *#      *        ##  #',
+            '#      *#*        #          #',
+            '#     *#**  0     #   ** 0   #',
+            '#       ###           ***    #',
             '#                            #',
-            '#    o ##          ###       #',
-            '#        ##        #   o     #',
-            '#      ##          #         #',
+            '#                            #',
+            '#*     ##          ###     * #',
+            '#        ##        #      ** #',
+            '#*     ##          #      ***#',
             '##############################'];
 
 
@@ -185,6 +186,7 @@ function Wall() {
 //
 function BouncingCritter() {
     this.direction = randomElement(directionNames);
+    this.energy = 10.0;
 }
 BouncingCritter.prototype.act = function(view) {
     if (view.look(this.direction) !== ' ') {
@@ -198,6 +200,7 @@ BouncingCritter.prototype.act = function(view) {
 function Snake() {
     //Default behaviour: drop until you find a wall
     this.direction = 's';
+    this.energy = 10.0;
 }
 Snake.prototype.act = function(view) {
     var start = this.direction;
@@ -215,6 +218,48 @@ Snake.prototype.act = function(view) {
 };
 
 
+// 
+// Plant Class
+//
+function Plant() {
+    this.energy = 3 + Math.random() * 4;
+}
+Plant.prototype.act = function(view) {
+    if (this.energy > 15) {
+        var space = view.find(' ');
+        if (space) {
+            return { type: 'reproduce',
+                     direction: space };
+        }
+    }
+    if (this.energy < 20) {
+        return { type: 'grow' };
+    }
+};
+
+
+//
+// PlantEater Class
+//
+function PlantEater() {
+    this.energy = 20;
+}
+PlantEater.prototype.act = function(view) {
+    var space = view.find(' ');
+    if (this.energy > 60 && space) {
+        return { type: 'reproduce',
+                 direction: space };
+    }
+    var plant = view.find('*');
+    if (plant) {
+        return { type: 'eat',
+                 direction: plant };
+    }
+    if (space) {
+        return { type: 'move',
+                 direction: space };
+    }
+};
 //
 // World Class
 // 
@@ -272,6 +317,78 @@ World.prototype.toString = function() {
 
 
 //
+// ActionTypes Object
+//
+var actionTypes = Object.create(null);
+actionTypes.grow = function(critter) {
+    // Growing just increases the energy of the critter
+    critter.energy += 0.5;
+    return true;
+};
+actionTypes.move = function(critter, vector, action) {
+    var dest = this.checkDestination(action, vector);
+    // Can the critter move to the new destination?
+    if (dest === null || 
+        critter.energy <= 1 ||
+        this.grid.get(dest) !== null) {
+        return false;
+    }
+    // Make the move
+    critter.energy -= 1;
+    this.grid.set(vector, null);
+    this.grid.set(dest, critter);
+    return true;
+};
+actionTypes.eat = function(critter, vector, action) {
+    var dest = this.checkDestination(action, vector);
+    var destContent = dest !== null && this.grid.get(dest);
+    // Can the critter eat what is at that destination?
+    if (!destContent || destContent.energy === null) {
+        return false;
+    }
+    critter.energy += destContent.energy;
+    this.grid.set(dest, null);
+    return true;
+};
+actionTypes.reproduce = function(critter, vector, action) {
+    var baby = elementFromChar(this.legend, critter.originChar);
+    var dest = this.checkDestination(action, vector);
+    // Can the critter make a baby?
+    if (dest === null ||
+        critter.energy <= 2 * baby.energy ||
+        this.grid.get(dest) !== null) {
+        console.log('Reproduction failed!');
+        return false;
+    }
+    critter.energy -= 2 * baby.energy;
+    this.grid.set(dest, baby);
+    return true;
+};
+
+
+//
+// RealWorld Class
+//
+function RealWorld(map, legend) {
+    World.call(this, map, legend);
+}
+RealWorld.prototype = Object.create(World.prototype);
+RealWorld.prototype.letAct = function(critter, vector) {
+    var action = critter.act(new View(this, vector));
+    console.log(action);
+    var handled = action && action.type in actionTypes &&
+                  actionTypes[action.type].call(this, critter,
+                                                vector, action);
+    if (!handled) {
+        critter.energy -= 0.2;
+        // If zero energy, the critter is dead
+        if (critter.energy <= 0) {
+            this.grid.set(vector, null);
+        }
+    }
+};
+
+//
 // Presentation Functions
 //
 function draw(str) {
@@ -279,7 +396,11 @@ function draw(str) {
 }
 
 
-var world = new World(plan, { '#': Wall, 'o': BouncingCritter, '~': Snake } );
+var world = new RealWorld(plan, { '#': Wall,
+                                  'o': BouncingCritter,
+                                  '~': Snake, 
+                                  '0': PlantEater,
+                                  '*': Plant } );
 
 
 function animateWorld() {
