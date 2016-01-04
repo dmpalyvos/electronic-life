@@ -5,16 +5,26 @@
             body {
                 padding: 20px;
             }
+            p {
+                font-size: 10px;
+            }
         </style>
     </head>
     <body>
         <h1>A Game of Life</h1>
         <pre id="world">
         </pre>
+        <p> 
+        #:  wall <br>
+        *:  plant <br>
+        ~: herbivore 1 <br>
+        O: herbivore 2 <br>
+        @: carnivore <br>
+        </p>
     <script src="life.js"></script>
     <script>
         //document.onload = draw('Test');
-        setInterval(function() { animateWorld(); }, 600);
+        setInterval(function() { animateWorld(); }, 300);
     </script>
     </body>
 </html>

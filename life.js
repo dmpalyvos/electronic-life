@@ -1,3 +1,4 @@
+/* jshint strict: true */
 // life.js - Electronic Life Simulation
 // Inspired by one of the projects in the book "Eloquent Javascript"
 // http://eloquentjavascript.net/07_elife.html
@@ -22,17 +23,25 @@
 // Sample game map 
 // The '#' character represents a wall block and
 // the 'o' character represents a critter
-var plan = ['##############################',
-            '#       *#      *        ##  #',
-            '#      *#*        #          #',
-            '#     *#**  0     #   ** 0   #',
-            '#       ###           ***    #',
-            '#                            #',
-            '#                            #',
-            '#*     ##          ###     * #',
-            '#        ##        #      ** #',
-            '#*     ##          #      ***#',
-            '##############################'];
+var plan = ['##################################################',
+            '#****     ~                 *                   *#',
+            '#**                *******       **             *#',
+            '#*                   *****       ##             *#',
+            '#*****                  O         #             *#',
+            '#*      ####                                    *#',
+            '#       #* #                                    *#',
+            '#       #*                     **               *#',
+            '#       ####                  ****              *#',
+            '#                             ***               *#',
+            '#         **********                            *#',
+            '#   #     *****                    ##           *#',
+            '#           ##*                      #          *#',
+            '#         ### *   ****             ##           *#',
+            '#        ###  *   *##*                          *#',
+            '#                  *#*                          *#',
+            '#**                             @               *#',
+            '#******                                         *#',
+            '##################################################'];
 
 
 // Available moves
@@ -62,6 +71,9 @@ var directionNames = 'n,ne,e,se,s,sw,w,nw'.split(',');
 
 // Get a random element from the provided array
 function randomElement(array) {
+    if (array.length === 0) {
+        return null;
+    }
     return array[Math.floor(Math.random() * array.length)];
 }
 
@@ -108,7 +120,15 @@ function Vector(x, y) {
     this.y = y;
 }
 Vector.prototype.plus = function(other) {
-    return new Vector(this.x + other.x, this.y + other.y);
+    if (other) {
+        return new Vector(this.x + other.x, this.y + other.y);
+    }
+    else {
+        throw new Error('Vector.plus failed!' + this.toString());
+    }
+};
+Vector.prototype.toString = function() {
+    return '(' + this.x + ', ' + this.y + ')';
 };
 
 
@@ -150,6 +170,9 @@ function View(world, vector) {
     this.vector = vector;
 }
 View.prototype.look = function(dir) {
+    if (dir === null || !directions.hasOwnProperty(dir)) {
+        return '#'
+    }
     var target = this.vector.plus(directions[dir]);
     if (this.world.grid.isInside(target)) {
         return charFromElement(this.world.grid.get(target));
@@ -161,7 +184,7 @@ View.prototype.look = function(dir) {
 View.prototype.findAll = function(ch) {
     var found = [];
     for (var dir in directions) {
-        if (this.look(dir) == ch) {
+        if (this.look(dir) === ch) {
             found.push(dir);
         }
     }
@@ -213,6 +236,17 @@ Snake.prototype.act = function(view) {
             break;
         }
     }
+    var space = this.direction;
+    if (this.energy > 45 && space) {
+        return { type: 'reproduce',
+                 direction: space };
+    }
+    // Eat a plant if there are 2 or more nearby
+    var plant = view.findAll('*');
+    if (plant && plant.length > 1) {
+        return { type: 'eat',
+                 direction: randomElement(plant) };
+    }
     return { type: 'move',
              direction: this.direction };
 };
@@ -242,25 +276,60 @@ Plant.prototype.act = function(view) {
 // PlantEater Class
 //
 function PlantEater() {
-    this.energy = 20;
+    this.energy = 15;
+    this.direction = randomElement(directionNames);
 }
 PlantEater.prototype.act = function(view) {
-    var space = view.find(' ');
-    if (this.energy > 60 && space) {
+    if (view.look(this.direction) !== ' ') {
+        this.direction = view.find(' ');
+    }
+    var space = this.direction;
+    if (this.energy > 45 && space) {
         return { type: 'reproduce',
                  direction: space };
     }
-    var plant = view.find('*');
-    if (plant) {
+    // Eat a plant if there are 2 or more nearby
+    var plant = view.findAll('*');
+    if (plant && plant.length > 1) {
         return { type: 'eat',
-                 direction: plant };
+                 direction: randomElement(plant) };
     }
     if (space) {
         return { type: 'move',
                  direction: space };
     }
 };
+
+
 //
+// Tiger Class
+//
+function Tiger() {
+    this.energy = 135;
+}
+Tiger.prototype.act = function(view) {
+    var space = view.find(' ');
+    if (this.energy > 300 && space) {
+        return { type: 'reproduce',
+                 direction: space };
+    }
+    // Eat a plant if there are 2 or more nearby
+    var prey1 = view.find('~');
+    if (prey1) {
+        return { type: 'eat',
+                 direction: prey1 };
+    }
+    var prey2 = view.find('O');
+    if (prey2) {
+        return { type: 'eat',
+                 direction: prey2 };
+    }
+    if (space) {
+        return { type: 'move',
+                 direction: space };
+    }
+};
+
 // World Class
 // 
 function World(map, legend) {
@@ -357,7 +426,6 @@ actionTypes.reproduce = function(critter, vector, action) {
     if (dest === null ||
         critter.energy <= 2 * baby.energy ||
         this.grid.get(dest) !== null) {
-        console.log('Reproduction failed!');
         return false;
     }
     critter.energy -= 2 * baby.energy;
@@ -375,7 +443,6 @@ function RealWorld(map, legend) {
 RealWorld.prototype = Object.create(World.prototype);
 RealWorld.prototype.letAct = function(critter, vector) {
     var action = critter.act(new View(this, vector));
-    console.log(action);
     var handled = action && action.type in actionTypes &&
                   actionTypes[action.type].call(this, critter,
                                                 vector, action);
@@ -399,8 +466,9 @@ function draw(str) {
 var world = new RealWorld(plan, { '#': Wall,
                                   'o': BouncingCritter,
                                   '~': Snake, 
-                                  '0': PlantEater,
-                                  '*': Plant } );
+                                  'O': PlantEater,
+                                  '*': Plant,
+                                  '@': Tiger } );
 
 
 function animateWorld() {
