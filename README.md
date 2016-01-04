@@ -29,4 +29,4 @@ O: herbivore 2
 @: carnivore
 ```
 
-
+[Live Demo](https://rawgit.com/dmpalyvos/electronic-life/master/index.html)
