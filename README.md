@@ -1,5 +1,8 @@
-# electronic-life
-Virtual Ecosystem
+## Electronic Life 
+
+Virtual text-based ecosystem
+
+[Live Demo Here](https://rawgit.com/dmpalyvos/electronic-life/master/index.html)
 
 ```
 ##################################################
@@ -29,4 +32,5 @@ O: herbivore 2
 @: carnivore
 ```
 
-[Live Demo](https://rawgit.com/dmpalyvos/electronic-life/master/index.html)
+## Acknowledgments
+Based on the project found in the ebook [Eloquent Javascript](http://eloquentjavascript.net/07_elife.html).
